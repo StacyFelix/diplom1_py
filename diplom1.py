@@ -8,11 +8,6 @@ import requests
 class Object:
     token = '73eaea320bdc0d3299faa475c196cfea1c4df9da4c6d291633f9fe8f83c08c4de2a3abf89fbc3ed8a44e1'
 
-    def get_params(self):
-        return {
-            'access_token': self.token
-        }
-
 
 class User(Object):
 
@@ -24,107 +19,109 @@ class User(Object):
 
     def get_list_ids_friends(self):
         URL_API_VK = 'https://api.vk.com/method/friends.get'
-        params = self.get_params()
+        # params = self.get_params()
+        params = {'access_token': self.token}
         params['user_id'] = self.user_id
         params['v'] = '5.52'
-        while(True):
+        while True:
             print('_')
             try:
                 response = requests.get(URL_API_VK, params=params)
             except:
                 time.sleep(1)
-                print('Error VkAPIError из get_list_ids_friends')
+                print('Error VkAPIError')
             else:
                 return response.json()['response']['items']
 
     def get_list_ids_groups(self, extended):
-        # URL_API_VK = 'https://api.vk.com/method/users.getSubscriptions'
         URL_API_VK = 'https://api.vk.com/method/groups.get'
-        params = self.get_params()
-
-        params['user_id'] = self.user_id
-        params['v'] = '5.101'
-        params['extended'] = extended
-        params['count'] = '1000'
-
-        while(True):
+        params = {'access_token': self.token, 'user_id': self.user_id, 'v': '5.101', 'extended': extended,
+                  'count': '1000'}
+        while True:
             print('_')
             try:
                 response = requests.get(URL_API_VK, params=params)
-            except:  # VkAPIError
-                time.sleep(1)
-                print('Error VkAPIError из get_list_ids_groups')
-
-            try:
-                res = response.json().get('response').get('items')
             except:
-                return []
+                time.sleep(1)
+                print('Error VkAPIError')
             else:
-                return res
+                res = response.json()
+                if 'response' in res:
+                    res_res = res['response']
+                    if 'items' in res_res:
+                        return res_res['items']
+                    else:
+                        return []
+                else:
+                    return []
 
-    def get_json_non_common_groups(self):
-        # множество всех групп юзера:
-        set_ids_groups = set(self.get_list_ids_groups('0'))
-
+    def get_set_ids_groups_friends(self):
         # список друзей юзера
         list_ids_friends = self.get_list_ids_friends()
+        len_list_ids_friends = len(list_ids_friends)
 
         # множество всех групп всех друзей юзера:
         set_ids_groups_friends = set()
         for id_friend in list_ids_friends:
             set_ids_groups_friends.update(set(User(id_friend).get_list_ids_groups('0')))
+            print(f"Осталось друзей: {len_list_ids_friends}")
+            len_list_ids_friends -= 1
+        return set_ids_groups_friends
 
-        # разность множеств list_groups и list_groups_friends
-        list_ids_res_groups = list(set_ids_groups.difference(set_ids_groups_friends))
-        print(list_ids_res_groups)
+    def get_common_groups(self, param='diff'):
+        # множество всех групп юзера:
+        set_ids_groups = set(self.get_list_ids_groups('0'))
 
-        group_el = Group()
+        # множество всех групп всех друзей юзера:
+        set_ids_groups_friends = self.get_set_ids_groups_friends()
 
-        # не работает:
-        # pprint(group.get_group_by_id(list_ids_res_groups))
+        print("Еще немного...")
 
-        # поэтому вот так:
-        json_non_common_groups = []
-        for id_group in list_ids_res_groups:
+        if param == 'diff':
+            # разность множеств list_groups и list_groups_friends
+            list_ids_groups = list(set_ids_groups.difference(set_ids_groups_friends))
+            print(f"Список групп пользователя, в которых не состоят друзья\n{list_ids_groups}")
+        elif param == 'intersec':
+            # пересечение множеств list_groups и list_groups_friends
+            list_ids_groups = list(set_ids_groups.intersection(set_ids_groups_friends))
+            print(f"Список групп пользователя, в которых состоят друзья\n{list_ids_groups}")
+
+        common_groups = []
+        for id_group in list_ids_groups:
             group = dict()
-            group_vk = group_el.get_group_by_id(id_group)[0]
+            group_vk = Group(id_group)[0]
             group['name'] = group_vk['name']
             group['gid'] = group_vk['id']
             group['members_count'] = group_vk['members_count']
-            json_non_common_groups.append(group)
+            common_groups.append(group)
 
-        pprint(json_non_common_groups)
+        pprint(common_groups)
 
-        with open("non_common_groups.json", "w", encoding='utf-8-sig') as datafile:
-            json.dump(json_non_common_groups, datafile, ensure_ascii=False, indent=2)
+        if param == 'diff':
+            with open("non_common_groups.json", "w", encoding='utf-8-sig') as datafile:
+                json.dump(common_groups, datafile, ensure_ascii=False, indent=2)
+        elif param == 'intersec':
+            with open("common_groups.json", "w", encoding='utf-8-sig') as datafile:
+                json.dump(common_groups, datafile, ensure_ascii=False, indent=2)
 
 
 class Group(Object):
 
-    def get_group_by_id(self, group_id):
+    def __new__(cls, group_id):
         URL_API_VK = 'https://api.vk.com/method/groups.getById'
-        params = self.get_params()
-        params['group_ids'] = group_id
-        params['v'] = '5.101'
-        params['fields'] = ['members_count']
-        while(True):
+        params = {'access_token': super().token, 'group_ids': group_id, 'v': '5.101', 'fields': ['members_count']}
+        while True:
             try:
                 response = requests.get(URL_API_VK, params=params)
-            except: #VkAPIError
+            except:
                 time.sleep(1)
-                print('VkAPIError из get_group_by_id')
+                print('Error VkAPIError')
             else:
                 return response.json().get('response')
 
 
-# ids_groups = [134709480, 125927592, 101522128, 8564]
-# for id_group in ids_groups:
-#     group_el = Group()
-#     pprint(group_el.get_group_by_id(id_group))
-
-# group_e = Group()
-# pprint(group_e.get_group_by_id(ids_groups))
-
-id_user = 171691064
-user_e = User(id_user)
-user_e.get_json_non_common_groups()
+if __name__ == '__main__':
+    id_user = 171691064
+    user_e = User(id_user)
+    user_e.get_common_groups()
+    # user_e.get_common_groups('intersec')

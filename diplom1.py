@@ -19,21 +19,26 @@ class User(Object):
 
     def get_list_ids_friends(self):
         URL_API_VK = 'https://api.vk.com/method/friends.get'
-        # params = self.get_params()
-        params = {'access_token': self.token}
-        params['user_id'] = self.user_id
-        params['v'] = '5.52'
+        params = {'access_token': self.token, 'user_id': self.user_id, 'v': '5.52'}
         while True:
             print('_')
             try:
                 response = requests.get(URL_API_VK, params=params)
             except:
-                time.sleep(1)
+                time.sleep(2)
                 print('Error VkAPIError')
             else:
-                return response.json()['response']['items']
+                res = response.json()
+                if 'response' in res:
+                    res_res = res['response']
+                    if 'items' in res_res:
+                        return res_res['items']
+                    else:
+                        return []
+                else:
+                    return []
 
-    def get_list_ids_groups(self, extended):
+    def get_list_ids_groups(self, extended='0'):
         URL_API_VK = 'https://api.vk.com/method/groups.get'
         params = {'access_token': self.token, 'user_id': self.user_id, 'v': '5.101', 'extended': extended,
                   'count': '1000'}
@@ -42,7 +47,7 @@ class User(Object):
             try:
                 response = requests.get(URL_API_VK, params=params)
             except:
-                time.sleep(1)
+                time.sleep(2)
                 print('Error VkAPIError')
             else:
                 res = response.json()
@@ -89,12 +94,12 @@ class User(Object):
         common_groups = []
         for id_group in list_ids_groups:
             group = dict()
-            group_vk = Group(id_group)[0]
-            group['name'] = group_vk['name']
-            group['gid'] = group_vk['id']
-            group['members_count'] = group_vk['members_count']
-            common_groups.append(group)
-
+            group_vk = Group(id_group)
+            if bool(group_vk):
+                group['name'] = group_vk['name']
+                group['gid'] = group_vk['id']
+                group['members_count'] = group_vk['members_count']
+                common_groups.append(group)
         pprint(common_groups)
 
         if param == 'diff':
@@ -114,10 +119,14 @@ class Group(Object):
             try:
                 response = requests.get(URL_API_VK, params=params)
             except:
-                time.sleep(1)
+                time.sleep(2)
                 print('Error VkAPIError')
             else:
-                return response.json().get('response')
+                res = response.json()
+                if 'response' in res:
+                    return res['response'][0]
+                else:
+                    return {}
 
 
 if __name__ == '__main__':
